@@ -14,6 +14,7 @@ Last updated: <to be updated on each change>
 ---
 
 ## Summary (Checklist)
+- [ ] 0. UI framework & mobile wrapper decision
 - [ ] 1. Backend foundation (Express + TS)
 - [ ] 2. Config and env management
 - [ ] 3. Prisma setup + initial migrate
@@ -40,6 +41,12 @@ Last updated: <to be updated on each change>
 ---
 
 ## Detailed Steps
+
+0) UI framework & mobile wrapper decision
+- Status: not-started
+- Goal: Adopt Tailwind CSS + Radix UI + shadcn/ui for web; PWA-first with Capacitor wrapper for mobile; establish theming tokens and accessibility baseline.
+- Acceptance: Architecture doc updated with UI decisions; Tailwind configured (config + PostCSS); base theme tokens defined in CSS; shadcn/ui initialized; sample components render.
+- Evidence: Files added/updated in `frontend` (Tailwind config, base CSS, shadcn/ui init), dev server output showing components.
 
 1) Backend foundation (Express + TS)
 - Status: not-started

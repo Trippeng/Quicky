@@ -13,6 +13,13 @@ Decision Note: The prior grounding doc used node-pg-migrate for migrations. This
   - State: Local component state + lightweight global state; localStorage for select persistence (e.g., last org, view state)
 - Core domains: Authentication, Organizations, Teams, Task Lists, Tasks, Task Chat, Invites, Roles.
 
+### UI Framework Decisions
+- Web UI: React + TypeScript + Vite with Tailwind CSS, Radix UI primitives, and shadcn/ui components for fast, accessible, and themeable UI.
+- Theming: CSS variables with light/dark modes; tokenized colors and radii.
+- Accessibility: Radix ensures robust A11y defaults; shadcn/ui builds on Radix semantics.
+- Mobile: PWA-first experience wrapped via Capacitor for iOS/Android distribution (single codebase).
+- Desktop: Responsive layout scales to larger screens without separate desktop framework.
+
 ## 2. Database & Migrations (Prisma)
 - Engine: PostgreSQL
 - ORM & Migrations: Prisma (schema-first, codegen types, Prisma Migrate)
@@ -227,6 +234,12 @@ Server: validate refresh → rotate + set new cookie → return new access JWT
   - `fetch` or Axios with request interceptors to attach access token; automatic refresh flow on 401 when refresh cookie exists
 - Session Persistence:
   - On load: if access token missing, call `/auth/refresh`; if success, hydrate session; else route to `/login`
+
+### UI Stack Details
+- Tailwind CSS: utility-first for rapid responsive design.
+- Radix UI: unstyled, accessible primitives for complex components (dialogs, dropdowns, tabs).
+- shadcn/ui: curated component library built on Radix; consistent styling and theming via Tailwind.
+- Theme tokens: defined in CSS variables to enable dynamic theming and consistency across components.
 
 ### Frontend Pseudo-Structure
 ```
