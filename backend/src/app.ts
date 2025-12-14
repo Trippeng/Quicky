@@ -2,6 +2,10 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import pino from 'pino';
+import cookieParser from 'cookie-parser';
+import authRoutes from './modules/auth/routes';
+import userRoutes from './modules/users/routes';
+import orgRoutes from './modules/orgs/routes';
 
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 
@@ -10,6 +14,7 @@ export const createApp = () => {
   app.use(helmet());
   app.use(cors({ origin: true, credentials: true }));
   app.use(express.json());
+  app.use(cookieParser());
 
   // Request logging (minimal)
   app.use((req, _res, next) => {
@@ -20,6 +25,10 @@ export const createApp = () => {
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok' });
   });
+
+  app.use('/api/auth', authRoutes);
+  app.use('/api/users', userRoutes);
+  app.use('/api/orgs', orgRoutes);
 
   // 404 handler
   app.use((req, res) => {
