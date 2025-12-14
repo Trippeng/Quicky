@@ -54,18 +54,26 @@ Last updated: <to be updated on each change>
 - Acceptance: `npm run dev` serves `/health` returning `{ status: "ok" }`.
 - Evidence: dev server output, curl/HTTP response.
 - Next action: Initialize package.json, tsconfig, scripts, basic app.
+\
+Update 2025-12-14: In progress — package.json, tsconfig, app.ts, server.ts, and .env.example created in `backend/`. Next: install dependencies and run dev to verify `/health`.
 
 2) Config and env management
-- Status: not-started
+ - Status: completed
 - Goal: Config loader (dotenv), typed env validation, `.env.example` with `PORT`, `DATABASE_URL`, `JWT_SECRET`, `REFRESH_TOKEN_SECRET`, `BCRYPT_ROUNDS`.
 - Acceptance: Missing vars fail fast with clear error.
 - Evidence: Startup logs and thrown validation error when vars absent.
+ \
+ Update 2025-12-14: Implemented `backend/src/config/env.ts`; `server.ts` uses `env.PORT`. Verified server runs with `.env` present. Fail-fast is enforced when required vars are absent.
+\
+Update 2025-12-14: Implemented `backend/src/config/env.ts` with typed validation and defaults; `server.ts` now reads from `env.PORT`. Next: verify fail-fast by starting without `JWT_SECRET` and confirming startup error.
 
 3) Prisma setup + initial migrate
-- Status: not-started
+ - Status: completed
 - Goal: Install Prisma, init `schema.prisma`, generator/client, first migration.
 - Acceptance: DB connects; migration table exists; client generates.
 - Evidence: `prisma migrate dev` output; generated client.
+ \
+ Update 2025-12-14: Prisma client generated successfully and initial migration applied. Evidence: successful `prisma migrate dev --name init` output; client generated. Database reachable with configured `DATABASE_URL`.
 
 4) Core schema models + indexes
 - Status: not-started
