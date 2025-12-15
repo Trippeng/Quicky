@@ -6,10 +6,12 @@ This repository uses AI assistance. To maintain reliability and traceability, ev
 - File: [docs/build-plan.md](build-plan.md)
 - On any meaningful change: update step status, timestamp, evidence (commit/PR links, file paths), and next action.
 - Do not merge or complete a task without reflecting it in this document.
+ - Keep the Summary section concise: checklist-only. Move detailed evidence under the corresponding step sections, not in the Summary.
 
 2) Keep authoritative docs aligned
 - Update [docs/architecture.md](architecture.md) and [docs/quicky-full-context.md](quicky-full-context.md) when architectural decisions or scope change.
 - Note any intentional deviations (e.g., migration tooling) at the top of the file with rationale.
+ - Record major choices as ADRs under `docs/adr/` (e.g., Prisma over node-pg-migrate).
 
 3) Use acceptance criteria and verification gates
 - Each step in [build-plan.md](build-plan.md) defines clear acceptance.
@@ -28,5 +30,8 @@ This repository uses AI assistance. To maintain reliability and traceability, ev
 7) Communication conventions
 - When running multi-step work, maintain a concise plan and progress notes in PR descriptions.
 - Reference step numbers from [build-plan.md](build-plan.md) in commit messages, e.g., "Step 5: Implement JWT helpers".
+ - Include doc updates in the same PR: mention which files were updated (e.g., build-plan, architecture, full-context, troubleshooting).
+ - After infra/runtime changes, update [docs/TROUBLESHOOTING.md](TROUBLESHOOTING.md) with the fix and steps to verify.
+ - Build-plan hygiene: avoid duplicated sections or conflicting statuses; normalize headings and keep evidence scoped to detailed sections.
 
 Failure to follow these rules creates inconsistency and slows the team. Keep the plan and docs as the single source of truth.

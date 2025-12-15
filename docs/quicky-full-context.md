@@ -1,4 +1,5 @@
 # quicky – Full Context and Decisions Document
+Decision override: Prisma ORM replaces node-pg-migrate for schema and migrations. Prisma is the source of truth; see [docs/adr/0001-prisma-over-node-pg-migrate.md](adr/0001-prisma-over-node-pg-migrate.md).
 
 Purpose of This Document
 
@@ -166,29 +167,24 @@ Deferred from MVP
 
 ## 7. Core Application UI Structure
 
-### Dashboard Page (New Page)
-A new unified dashboard page will be created (this is not an update to an existing page).
-
-On desktop/tablet: The following views are displayed as adjacent vertical columns on a single page:
+### Dashboard Page (Card Layout)
+On desktop/tablet, the dashboard presents four cards:
 - Teams
 - Task Lists
 - Tasks
 - Task Chat
 
-### Column Behavior
-- The column last clicked by the user becomes:
-  - Visually highlighted
-  - Wider than the other columns
-- Other columns shrink proportionally
-- The currently selected team determines which task lists are shown
-- The currently selected task list determines which tasks are shown
-- The currently selected task determines which chat is shown
+Card Behavior
+- The active card is centered, larger, and visually in front.
+- Inactive cards sit to the sides, smaller and slightly blurred to imply de-emphasis.
+- Clicking an inactive card makes it active and focuses its content.
+- The selected team determines visible lists; selected list determines tasks; selected task determines chat messages.
+ - Pagination: Next uses cursor from backend responses; Prev leverages in-memory page caches for each card to enable quick back navigation without refetching.
 
 ### Mobile Behavior
-- Only one column/view is visible at a time
-- Top navigation includes back and forward arrows
-- Arrows allow horizontal navigation between Teams, Task Lists, Tasks, and Chat
-- State is preserved as the user navigates between columns
+- Single card/view visible at a time.
+- Back/forward navigation cycles through Teams → Lists → Tasks → Chat.
+- State is preserved while navigating.
 
 ## 8. Monetization Direction
 
@@ -276,23 +272,25 @@ No architectural rewrites are required to reach this scale.
 - PostgreSQL (local or Docker)
 - VS Code
 
-### Project Structure
+### Project Structure (current)
 ```
-ops-mvp/
+quicky/
 ├─ backend/
-├─ frontend/
-└─ README.md
+└─ docs/
 ```
 
 ### Frontend Setup
 - Vite + React + TypeScript
+ - Browser smoke via Playwright configured (baseURL via `BASE_URL`), validating login, session refresh-on-401, and dashboard navigation.
 
 ### Backend Setup
-- Express server scaffolded
-- Environment variables via .env
-- Postgres database created locally
-- Database schema managed via node-pg-migrate
-- Database can be wiped and recreated via migration reset during development
+- Express + TypeScript server scaffolded
+- Environment variables via `.env` (see [docs/ENV.md](ENV.md))
+- PostgreSQL + Prisma ORM with Prisma Migrate
+- Health check at `/health`; bind `HOST=127.0.0.1` on Windows
+ - Hardening: request-id logging (`pino-http`), consistent error envelopes via helpers, CORS restricted to dev origins (127.0.0.1:5173/5174), rate limiting on `/api/auth/*`, and `zod` validation across auth login, team/list/task/message create and task patch routes.
+ - Pagination Meta: Cursor pagination responses include `meta.nextCursor` across Teams, Lists, Tasks, and Messages; API tests assert presence with `limit=1`.
+ - E2E Coverage: API sanity suite (auth/session, org listing, RBAC denies, CRUD envelopes, hardening headers) and a frontend Playwright smoke test both passing; evidence logged in `docs/build-plan.md`.
 
 ## 12. AI-Assisted Development Strategy
 
@@ -316,23 +314,24 @@ A detailed Copilot prompt was created to generate the Organization Selection Pag
 
 ## 13. Current Execution State
 
-### Completed
-- Product scope defined
-- Architecture validated
-- Scalability confirmed
-- Local dev environment running
-- Frontend scaffolded with Vite
-- Login page implemented
-- Org selection page exists and is partially implemented
-- Backend database connectivity established
-- Migrations configured
+### Completed (Backend MVP scope)
+- Backend foundation (Express + TS) with `/health`
+- Env validation and typed config
+- Prisma setup, schema models, migrations
+- Auth helpers and routes (login, refresh, logout; OTP scaffolding)
+- Users endpoints (me get/patch)
+- Organizations + RBAC (owner/admin/member)
+- Invites (create, accept)
+- Teams and Lists (with cursor pagination)
+- Tasks CRUD + status (filters + cursor pagination)
+- Task messages (ascending chronological with cursor pagination)
+- Troubleshooting documented for Windows HOST binding
+ - Tests: Jest + Supertest suites added (`backend/tests/*`); unauthenticated routes may return `401` and tests accept `401` alongside `400/403/404` for validation and permission scenarios.
 
 ### Next Logical Steps
-- Finish Org Selection Page logic (create org, show invites)
-- Ensure auth persistence across refresh
-- Finalize org and invite backend APIs
-- Wire frontend to backend via Vite proxy
-- Implement unified dashboard page with column-based layout
+- Frontend: UI framework decision, Vite scaffold, API client + proxy, auth UI/session, org selection, dashboard
+- Hardening: logging, CORS, rate limiting, validation, seeds, E2E pass
+- Activation metrics: deferred (KPI only), no API in MVP
 
 ## 13. Usage Instruction for Future Conversations
 

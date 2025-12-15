@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { z } from 'zod';
+import { sendZodError, sendError } from '../../utils/http';
 import { prisma } from '../../db/prisma';
 import { requireAuth, AuthRequest } from '../../middleware/auth';
 import { OrgRole, TaskStatus } from '@prisma/client';
@@ -24,19 +26,25 @@ async function ensureMember(orgId: string, userId: string) {
 }
 
 // Create task in list (org members)
+const createTaskSchema = z.object({
+  title: z.string().min(1),
+  description: z.string().optional(),
+  ownerId: z.string().optional(),
+});
 router.post('/lists/:listId/tasks', requireAuth, async (req: AuthRequest, res) => {
-  const { title, description, ownerId } = req.body || {};
-  if (!title || typeof title !== 'string' || title.length < 1) {
-    return res.status(422).json({ status: 'error', message: 'Invalid title' });
+  const parsed = createTaskSchema.safeParse(req.body || {});
+  if (!parsed.success) {
+    return sendZodError(res, parsed);
   }
+  const { title, description, ownerId } = parsed.data;
   const list = await getListWithOrg(req.params.listId);
-  if (!list) return res.status(404).json({ status: 'error', message: 'List not found' });
+  if (!list) return sendError(res, 404, 'List not found');
   const orgId = list.team.organizationId;
   if (!(await ensureMember(orgId, req.user!.id))) {
-    return res.status(403).json({ status: 'error', message: 'Forbidden' });
+    return sendError(res, 403, 'Forbidden');
   }
   const data: any = { title, description, taskListId: list.id };
-  if (ownerId && typeof ownerId === 'string') data.ownerId = ownerId;
+  if (ownerId) data.ownerId = ownerId;
   const task = await prisma.task.create({ data });
   return res.status(201).json({ status: 'ok', data: task });
 });
@@ -44,10 +52,10 @@ router.post('/lists/:listId/tasks', requireAuth, async (req: AuthRequest, res) =
 // List tasks in list (org members) with filters and cursor pagination
 router.get('/lists/:listId/tasks', requireAuth, async (req: AuthRequest, res) => {
   const list = await getListWithOrg(req.params.listId);
-  if (!list) return res.status(404).json({ status: 'error', message: 'List not found' });
+  if (!list) return sendError(res, 404, 'List not found');
   const orgId = list.team.organizationId;
   if (!(await ensureMember(orgId, req.user!.id))) {
-    return res.status(403).json({ status: 'error', message: 'Forbidden' });
+    return sendError(res, 403, 'Forbidden');
   }
   const where: any = { taskListId: list.id };
   if (typeof req.query.status === 'string' && Object.values(TaskStatus).includes(req.query.status as TaskStatus)) {
@@ -68,10 +76,10 @@ router.get('/lists/:listId/tasks', requireAuth, async (req: AuthRequest, res) =>
 // Get task by id (org members)
 router.get('/tasks/:taskId', requireAuth, async (req: AuthRequest, res) => {
   const task = await prisma.task.findUnique({ where: { id: req.params.taskId }, include: { taskList: { include: { team: true } } } });
-  if (!task) return res.status(404).json({ status: 'error', message: 'Task not found' });
+  if (!task) return sendError(res, 404, 'Task not found');
   const orgId = task.taskList.team.organizationId;
   if (!(await ensureMember(orgId, req.user!.id))) {
-    return res.status(403).json({ status: 'error', message: 'Forbidden' });
+    return sendError(res, 403, 'Forbidden');
   }
   // Strip nested to keep envelope small
   const { taskList, ...rest } = task as any;
@@ -79,31 +87,24 @@ router.get('/tasks/:taskId', requireAuth, async (req: AuthRequest, res) => {
 });
 
 // Patch task (org members) — allow updates to title, description, status, ownerId
+const patchTaskSchema = z.object({
+  title: z.string().min(1).optional(),
+  description: z.string().optional(),
+  status: z.nativeEnum(TaskStatus).optional(),
+  ownerId: z.string().nullable().optional(),
+});
 router.patch('/tasks/:taskId', requireAuth, async (req: AuthRequest, res) => {
   const existing = await prisma.task.findUnique({ where: { id: req.params.taskId }, include: { taskList: { include: { team: true } } } });
-  if (!existing) return res.status(404).json({ status: 'error', message: 'Task not found' });
+  if (!existing) return sendError(res, 404, 'Task not found');
   const orgId = existing.taskList.team.organizationId;
   if (!(await ensureMember(orgId, req.user!.id))) {
-    return res.status(403).json({ status: 'error', message: 'Forbidden' });
+    return sendError(res, 403, 'Forbidden');
   }
-  const { title, description, status, ownerId } = req.body || {};
-  const data: any = {};
-  if (title != null) {
-    if (typeof title !== 'string' || title.length < 1) return res.status(422).json({ status: 'error', message: 'Invalid title' });
-    data.title = title;
+  const parsed = patchTaskSchema.safeParse(req.body || {});
+  if (!parsed.success) {
+    return sendZodError(res, parsed);
   }
-  if (description != null) {
-    if (typeof description !== 'string') return res.status(422).json({ status: 'error', message: 'Invalid description' });
-    data.description = description;
-  }
-  if (status != null) {
-    if (!Object.values(TaskStatus).includes(status)) return res.status(422).json({ status: 'error', message: 'Invalid status' });
-    data.status = status;
-  }
-  if (ownerId != null) {
-    if (ownerId !== null && typeof ownerId !== 'string') return res.status(422).json({ status: 'error', message: 'Invalid ownerId' });
-    data.ownerId = ownerId;
-  }
+  const data = parsed.data as any;
   const updated = await prisma.task.update({ where: { id: existing.id }, data });
   return res.json({ status: 'ok', data: updated });
 });

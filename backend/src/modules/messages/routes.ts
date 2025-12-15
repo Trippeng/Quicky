@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { z } from 'zod';
+import { sendZodError, sendError } from '../../utils/http';
 import { prisma } from '../../db/prisma';
 import { requireAuth, AuthRequest } from '../../middleware/auth';
 
@@ -20,17 +22,19 @@ async function ensureMember(orgId: string, userId: string) {
 }
 
 // Post a message to a task (org members)
+const createMessageSchema = z.object({ body: z.string().min(1) });
 router.post('/tasks/:taskId/messages', requireAuth, async (req: AuthRequest, res) => {
   const task = await getTaskWithOrg(req.params.taskId);
-  if (!task) return res.status(404).json({ status: 'error', message: 'Task not found' });
+  if (!task) return sendError(res, 404, 'Task not found');
   const orgId = task.taskList.team.organizationId;
   if (!(await ensureMember(orgId, req.user!.id))) {
-    return res.status(403).json({ status: 'error', message: 'Forbidden' });
+    return sendError(res, 403, 'Forbidden');
   }
-  const { body } = req.body || {};
-  if (!body || typeof body !== 'string' || body.trim().length === 0) {
-    return res.status(422).json({ status: 'error', message: 'Invalid body' });
+  const parsed = createMessageSchema.safeParse(req.body || {});
+  if (!parsed.success) {
+    return sendZodError(res, parsed);
   }
+  const { body } = parsed.data;
   const msg = await prisma.taskMessage.create({ data: { taskId: task.id, authorId: req.user!.id, body } });
   return res.status(201).json({ status: 'ok', data: msg });
 });
@@ -38,10 +42,10 @@ router.post('/tasks/:taskId/messages', requireAuth, async (req: AuthRequest, res
 // List messages for a task (org members), chronological order with cursor pagination
 router.get('/tasks/:taskId/messages', requireAuth, async (req: AuthRequest, res) => {
   const task = await getTaskWithOrg(req.params.taskId);
-  if (!task) return res.status(404).json({ status: 'error', message: 'Task not found' });
+  if (!task) return sendError(res, 404, 'Task not found');
   const orgId = task.taskList.team.organizationId;
   if (!(await ensureMember(orgId, req.user!.id))) {
-    return res.status(403).json({ status: 'error', message: 'Forbidden' });
+    return sendError(res, 403, 'Forbidden');
   }
   const limit = parseLimit(req.query.limit);
   const cursorId = typeof req.query.cursor === 'string' ? (req.query.cursor as string) : undefined;

@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { z } from 'zod';
+import { sendZodError, sendError } from '../../utils/http';
 import { prisma } from '../../db/prisma';
 import { requireAuth, AuthRequest } from '../../middleware/auth';
 import { requireRole } from '../../middleware/requireRole';
@@ -13,13 +15,15 @@ function parseLimit(q: any, def = 20, max = 50) {
 }
 
 // Create team in an org (OWNER or ADMIN required)
+const createTeamSchema = z.object({ name: z.string().min(2) });
 router.post('/orgs/:orgId/teams', requireAuth, requireRole([OrgRole.OWNER, OrgRole.ADMIN]), async (req: AuthRequest, res) => {
-  const { name } = req.body || {};
-  if (!name || typeof name !== 'string' || name.length < 2) {
-    return res.status(422).json({ status: 'error', message: 'Invalid name' });
+  const parsed = createTeamSchema.safeParse(req.body || {});
+  if (!parsed.success) {
+    return sendZodError(res, parsed);
   }
+  const { name } = parsed.data;
   const org = await prisma.organization.findUnique({ where: { id: req.params.orgId } });
-  if (!org) return res.status(404).json({ status: 'error', message: 'Organization not found' });
+  if (!org) return sendError(res, 404, 'Organization not found');
   const team = await prisma.team.create({ data: { name, organizationId: org.id } });
   return res.status(201).json({ status: 'ok', data: team });
 });
@@ -28,7 +32,7 @@ router.post('/orgs/:orgId/teams', requireAuth, requireRole([OrgRole.OWNER, OrgRo
 router.get('/orgs/:orgId/teams', requireAuth, async (req: AuthRequest, res) => {
   const orgId = req.params.orgId;
   const member = await prisma.membership.findFirst({ where: { organizationId: orgId, userId: req.user!.id } });
-  if (!member) return res.status(403).json({ status: 'error', message: 'Forbidden' });
+  if (!member) return sendError(res, 403, 'Forbidden');
   const limit = parseLimit(req.query.limit);
   const cursorId = typeof req.query.cursor === 'string' ? (req.query.cursor as string) : undefined;
   const query: any = {

@@ -1,8 +1,10 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { prisma } from '../../db/prisma';
 import { hashPassword, verifyPassword } from './crypto';
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from './tokens';
 import { env } from '../../config/env';
+import { sendError, sendZodError } from '../../utils/http';
 
 const router = Router();
 
@@ -17,11 +19,17 @@ function setRefreshCookie(res: any, token: string) {
   });
 }
 
+const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6),
+});
+
 router.post('/login', async (req, res) => {
-  const { email, password } = req.body || {};
-  if (!email || !password) {
-    return res.status(422).json({ status: 'error', message: 'Email and password required' });
-  }
+  const parsed = loginSchema.safeParse(req.body || {});
+    if (!parsed.success) {
+      return sendZodError(res, parsed);
+    }
+  const { email, password } = parsed.data;
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user || !user.passwordHash) {
     return res.status(401).json({ status: 'error', message: 'Invalid credentials' });
@@ -58,7 +66,7 @@ router.post('/logout', async (_req, res) => {
 // OTP endpoints (placeholders)
 router.post('/otp/request', async (req, res) => {
   const { email } = req.body || {};
-  if (!email) return res.status(422).json({ status: 'error', message: 'Email required' });
+    if (!email) return sendError(res, 422, 'Email required');
   // Generate OTP and expiry
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
   const expires = new Date(Date.now() + 10 * 60 * 1000);
@@ -73,7 +81,7 @@ router.post('/otp/request', async (req, res) => {
 
 router.post('/otp/verify', async (req, res) => {
   const { email, otp } = req.body || {};
-  if (!email || !otp) return res.status(422).json({ status: 'error', message: 'Email and OTP required' });
+    if (!email || !otp) return sendError(res, 422, 'Email and OTP required');
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user || !user.otpValue || !user.otpExpiresAt) {
     return res.status(401).json({ status: 'error', message: 'Invalid OTP' });

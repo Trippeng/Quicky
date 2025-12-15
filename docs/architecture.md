@@ -188,8 +188,11 @@ Server: validate refresh → rotate + set new cookie → return new access JWT
 - Conventions:
   - Base path: `/api`
   - JSON envelope: `{ status: "ok"|"error", message?: string, data?: any, meta?: { pagination? } }`
-  - Pagination: query params `page`, `pageSize`; response `meta = { page, pageSize, total }`
+  - Pagination: cursor-based with `limit` and `cursor` query params; response includes `meta.nextCursor` (null when no more)
   - Middleware: `auth` (access token), `requireRole`, `orgContext` (resolve current org by claim or header)
+  - Error consistency: all errors return the envelope with `status: "error"` and optional `message`; validation errors include `errors` array (from zod). Unauthenticated takes precedence → routes may return `401` before `403/404` RBAC/not-found checks.
+   - Rate limiting: `/api/auth/*` protected with `express-rate-limit`; headers like `ratelimit-policy`, `ratelimit-limit` exposed. Tests assert presence.
+   - CORS: dev-only origins allowed (`http://localhost:5173`, `http://localhost:5174`, `http://127.0.0.1:5173`, `http://127.0.0.1:5174`); production tightened.
 - Auth:
   - POST `/api/auth/login`
   - POST `/api/auth/refresh`
@@ -223,6 +226,16 @@ Server: validate refresh → rotate + set new cookie → return new access JWT
 - 401 unauthorized, 403 forbidden, 404 not found, 422 validation, 500 server
 - Example: `{ status: "error", message: "Invalid credentials" }`
 
+### Response Examples
+Success
+```
+{ "status": "ok", "data": { /* resource */ }, "meta": { "nextCursor": null } }
+```
+Error
+```
+{ "status": "error", "message": "Forbidden" }
+```
+
 ## 5. Frontend Architecture
 - Views:
   - Login, Registration, Org Selection, Dashboard (4-column on desktop: Teams, Task Lists, Tasks, Chat; single-column navigable on mobile), Task Details
@@ -232,6 +245,8 @@ Server: validate refresh → rotate + set new cookie → return new access JWT
   - LocalStorage: selected organization id, lightweight UI prefs; avoid storing tokens
 - API Client:
   - `fetch` or Axios with request interceptors to attach access token; automatic refresh flow on 401 when refresh cookie exists
+  - Status handling: treat `401` as session expiry (attempt refresh once and retry); `403/404` indicate domain/permission outcomes and should not trigger refresh.
+ - Playwright smoke: optional browser validation configured in `frontend/playwright.config.ts` with baseURL overridden via `BASE_URL`. Artifacts (trace/video) retained on failure or first retry.
 - Session Persistence:
   - On load: if access token missing, call `/auth/refresh`; if success, hydrate session; else route to `/login`
 
@@ -283,6 +298,10 @@ frontend/src/
 - Protect DB from injection via Prisma (parameterized); validate custom SQL if any
 - Rate-limit auth endpoints; lockout/backoff on repeated failures
 - CORS restricted to dev origins in development; strict in production
+ - Cookie flags: `httpOnly`, `secure` (prod), `sameSite=strict` (adjust if cross-site refresh is needed)
+ - Bcrypt: use `BCRYPT_ROUNDS` (default 10; consider 12+ in production with performance testing)
+
+See [docs/ENV.md](ENV.md) for environment variables.
 
 ## 8. Backend Architecture
 - Structure (suggested):
@@ -331,27 +350,35 @@ Server: validate (exists, not used, not expired) → add membership MEMBER → m
 Client: set current org; navigate to dashboard
 ```
 
-### Dashboard Column Selection (Desktop)
-```
-Teams click → load lists
-Lists click → load tasks
-Task click → load messages
-```
+### Dashboard Card UX (Desktop)
+The dashboard shows four interactive cards: Teams, Lists, Tasks, Chat.
+- Active card: centered, larger, and in front.
+- Inactive cards: on either side, smaller, slightly blurred and visually behind.
+- Clicking an inactive card brings it to the center as active.
+
+Pagination
+- Each card uses cursor-based pagination (`limit`, `cursor`; `meta.nextCursor` in responses).
+- Controls: Next (fetches next page) and Prev (uses in-memory cached previous pages for fast back navigation).
+ - Tests: API-level pagination meta tests verify `meta.nextCursor` presence across Teams, Lists, Tasks, and Messages with `limit=1`.
 
 ### Mobile Navigation
-```
-Back/forward arrows switch between Teams → Lists → Tasks → Chat
-Preserve selection across views
-```
+- Single-card view at a time with back/forward navigation between Teams → Lists → Tasks → Chat.
+- Preserve selection across views.
 
 ## 10. Logging & Observability
-- Logging: pino with request-scoped ids; redact secrets
+- Logging: `pino` + `pino-http` with request-scoped IDs; redact secrets
+- Error handler: global Express error middleware returns `{ status: "error", message }` consistently; validation errors include an `errors` array (zod issues)
+ - Error helpers: centralized utilities enforce consistent error envelopes; tests verify shape and headers where applicable.
+- Rate limiting: `express-rate-limit` applied to `/api/auth/*` (10/min per IP)
+- CORS policy: restricted to dev origins (`127.0.0.1:5173/5174`, `localhost:5173/5174`); production tightened further
 - Error reporting: hook for external service (e.g., Sentry) optional in production
 - Metrics (optional): basic counters for requests, errors; activation metrics deferred to Phase 2 (kept as a product KPI, not an MVP endpoint)
 
 ## 11. Environment & Dev Setup (aligned)
 - Backend: Node LTS; `.env` with `DATABASE_URL`, `JWT_SECRET`, `REFRESH_TOKEN_SECRET`, `PORT`
 - Frontend: Vite dev server at 5173; proxy `/api` → backend port
+  - Note: Vite may use 5173 or 5174; CORS allows both in development.
+ - Playwright: set `BASE_URL` to the active Vite origin (e.g., `http://localhost:5174`), then run `npx playwright test`.
 - Commands (indicative):
 ```
 # Backend
@@ -374,6 +401,8 @@ npm run dev
 - Types: shared TypeScript types for API contracts (generate from Prisma or hand-maintained DTOs)
 - Responses: always use JSON envelope and consistent error shapes
 - Pagination: mandatory for list endpoints; validate bounds
+- Validation: use `zod` on auth/login and extend to create/update routes; return 400 with issue details
+  - Coverage: create validation on Teams (`name`), Lists (`name`), Tasks (`title`, `description?`, `ownerId?`), Messages (`body`); patch validation on Tasks (`title?`, `description?`, `status?`, `ownerId?`)
 - Indexes: ensure query patterns match Prisma findMany filters with proper indexes
 
 ---
