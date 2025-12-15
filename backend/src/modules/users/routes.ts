@@ -17,7 +17,7 @@ router.get('/me', requireAuth, async (req: AuthRequest, res) => {
 router.patch('/me', requireAuth, async (req: AuthRequest, res) => {
   const id = req.user!.id;
   const { username } = req.body || {};
-  if (username && (typeof username !== 'string' || username.length < 2)) {
+  if (typeof username !== 'undefined' && (typeof username !== 'string' || username.length < 2)) {
     return res.status(422).json({ status: 'error', message: 'Invalid username' });
   }
   const updated = await prisma.user.update({

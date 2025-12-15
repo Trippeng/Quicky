@@ -55,3 +55,9 @@ export async function apiGetJson<T>(path: string): Promise<T> {
   const json = await resp.json()
   return json as T
 }
+
+export async function apiPostJson<T>(path: string, body: any): Promise<T> {
+  const resp = await apiFetch(path, { method: 'POST', body: JSON.stringify(body) })
+  const json = await resp.json()
+  return json as T
+}

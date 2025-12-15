@@ -12,8 +12,8 @@ const router = Router();
 function setRefreshCookie(res: any, token: string) {
   res.cookie('rt', token, {
     httpOnly: true,
-    secure: false, // set true in production with HTTPS
-    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
     path: '/api/auth/refresh',
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
@@ -21,7 +21,17 @@ function setRefreshCookie(res: any, token: string) {
 
 const loginSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(6),
+  password: z.string().min(8),
+});
+
+// Email existence check for progressive Login/Signup
+router.post('/check-email', async (req, res) => {
+  const email = (req.body?.email || '').toString()
+  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    return sendError(res, 422, 'Valid email required')
+  }
+  const user = await prisma.user.findUnique({ where: { email } })
+  return res.json({ status: 'ok', data: { exists: !!user } })
 });
 
 router.post('/login', async (req, res) => {
@@ -44,6 +54,33 @@ router.post('/login', async (req, res) => {
   return res.json({ status: 'ok', data: { accessToken: at } });
 });
 
+const signupSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+});
+
+router.post('/signup', async (req, res) => {
+  const parsed = signupSchema.safeParse(req.body || {});
+  if (!parsed.success) {
+    return sendZodError(res, parsed);
+  }
+  const { email, password } = parsed.data;
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing && existing.passwordHash) {
+    return res.status(409).json({ status: 'error', message: 'User already exists' });
+  }
+  const hash = await hashPassword(password);
+  const user = await prisma.user.upsert({
+    where: { email },
+    update: { passwordHash: hash },
+    create: { email, username: email.split('@')[0], passwordHash: hash },
+  });
+  const at = signAccessToken({ sub: user.id });
+  const rt = signRefreshToken({ sub: user.id, tokenId: user.id });
+  setRefreshCookie(res, rt);
+  return res.json({ status: 'ok', data: { accessToken: at } });
+});
+
 router.post('/refresh', async (req, res) => {
   const cookie = req.cookies?.rt;
   if (!cookie) {
@@ -52,6 +89,9 @@ router.post('/refresh', async (req, res) => {
   try {
     const payload = verifyRefreshToken(cookie);
     const at = signAccessToken({ sub: payload.sub });
+    // Rotate refresh token to reduce replay risk (always rotate; especially important in production)
+    const rt = signRefreshToken({ sub: payload.sub, tokenId: payload.tokenId || payload.sub });
+    setRefreshCookie(res, rt);
     return res.json({ status: 'ok', data: { accessToken: at } });
   } catch (e) {
     return res.status(401).json({ status: 'error', message: 'Invalid refresh token' });

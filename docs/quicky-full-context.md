@@ -186,6 +186,18 @@ Card Behavior
 - Back/forward navigation cycles through Teams → Lists → Tasks → Chat.
 - State is preserved while navigating.
 
+### Phase 2 Additions
+- Auth/session: Short-lived access JWT and longer-lived refresh via httpOnly cookies; auto-refresh and single retry on 401.
+- Polling:
+  - Chat polls on load and every 5s while active; pauses when inactive.
+  - Teams/Lists/Tasks poll on load and every 30s while active; pause/resume by visibility.
+- Login/Signup combined screen:
+  - Header starts as "Log in or Sign up"; after email entry, switch to "Log in" (existing email) or "Sign up" (new email), revealing password and OTP options.
+- Chat UX:
+  - Familiar chat bubbles with author/timestamp; input with send; placeholder buttons for voice notes and attachments (non-functional in Phase 2).
+- Mobile-first & desktop:
+  - Fine-tuned mobile spacing and touch targets; desktop retains multi-column usefulness with expanded context.
+
 ## 8. Monetization Direction
 
 While not implemented yet, the intended monetization model is:

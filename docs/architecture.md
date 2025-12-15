@@ -174,6 +174,11 @@ Notes:
 - Password rules: min 8 chars, ≥1 letter, ≥1 number; stored as bcrypt hash.
 - RBAC: Role at membership level (`OrgRole`) controls org-level permissions; `OWNER` has all rights, `ADMIN` manages members/teams, `MEMBER` standard access.
 
+### Phase 2 Auth Adjustments
+- Refresh rotation: enforce refresh rotation on each `/auth/refresh` in production; document dev behavior if rotation is relaxed.
+- Cookie flags: verify `httpOnly`, `secure` (prod), `SameSite=strict` (prod) and `SameSite=lax` (dev). Document cross-site restrictions for future mobile/web integration.
+- Client behavior: retry one 401 with refresh path; never loop retries. On refresh failure, hard logout and redirect to login.
+
 ### Auth Sequence (pseudo-diagram)
 ```
 Client -> /auth/login (email, password)
@@ -249,6 +254,20 @@ Error
  - Playwright smoke: optional browser validation configured in `frontend/playwright.config.ts` with baseURL overridden via `BASE_URL`. Artifacts (trace/video) retained on failure or first retry.
 - Session Persistence:
   - On load: if access token missing, call `/auth/refresh`; if success, hydrate session; else route to `/login`
+
+### Phase 2 UI & Polling Behavior
+- Polling strategy:
+  - Chat: poll on load and every 5s when the Chat card/view is active; pause when inactive.
+  - Teams/Lists/Tasks: poll on load and every 30s when their respective cards/views are active; pause when inactive.
+  - Use `setInterval` with cleanup in React effects; tie to visibility/focus events to pause/resume.
+- Combined Login/Signup:
+  - Single page starting with header "Log in or Sign up".
+  - Email entry determines path: existing email → show password + OTP options under "Log in"; new email → show password + OTP options under "Sign up".
+- Mobile-first & desktop:
+  - Optimize touch targets, spacing, and one-column flows for mobile.
+  - Desktop adopts multi-column layouts with useful context (e.g., expanded dashboard cards, side-by-side details).
+- Chat UX:
+  - Chronological message list with author and timestamp; input area with send; placeholder buttons for voice notes and photo/doc attachments (non-functional in Phase 2).
 
 ### UI Stack Details
 - Tailwind CSS: utility-first for rapid responsive design.

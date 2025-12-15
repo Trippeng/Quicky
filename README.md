@@ -34,18 +34,30 @@ npm test
 ```powershell
 Push-Location "C:\Users\solos\Desktop\quicky\frontend"
 npm i
+
+### Phase 2 Verification Tips
+- Auth refresh:
+```powershell
 ```
 2. Start Vite dev server:
+```
+- Polling cadence:
+```powershell
 ```powershell
 npm run dev
 # Vite serves on http://localhost:5173/ (or 5174)
 ```
+- Combined Login/Signup + OTP:
+```powershell
+```
 3. Playwright smoke (browser E2E):
+```
 ```powershell
 npx playwright install --with-deps
 $env:BASE_URL="http://localhost:5174" # adjust if needed
 npx playwright test
 ```
+- OTP email dev mode: If using a dev mailer, log OTP codes to the console/backend logs for local verification.
 - The smoke validates login flow, refresh-on-401, and dashboard navigation.
 
 ## Notes

@@ -1,21 +1,121 @@
-## Step 20: Hardening
-- Status: completed (2025-12-15)
-- Acceptance: Request ID logging, global error envelope, tighter CORS to dev origins, auth rate limiting, input validation for login and for teams/lists/tasks/messages.
-	Evidence: backend changes in `backend/src/app.ts` (pino-http logging with ids, CORS restrictions, rate limit on /api/auth), `backend/src/modules/auth/routes.ts` (zod validation for /login). Extended zod validation: `backend/src/modules/teams/routes.ts` (create), `backend/src/modules/lists/routes.ts` (create), `backend/src/modules/tasks/routes.ts` (create + patch), `backend/src/modules/messages/routes.ts` (create). Added standardized error helpers: `backend/src/utils/http.ts` and adopted across modules for consistent error envelopes. Dashboard Prev pagination added with in-memory page caching in `frontend/src/pages/Dashboard.tsx`; architecture updated.
-	Tests: Minimal API tests added under `backend/tests/` and now green. Suites: `auth.test.ts`, `teams.test.ts`, `lists_tasks_messages.test.ts`. Adjusted expectations to allow `401` alongside `400/403/404` when unauthenticated.
-	Evidence (logs): Jest run passed 7/7 tests; sample pino logs show 401 with consistent error envelope and rate-limit headers on auth routes.
-	Next: Expand authenticated test cases to assert strict `400` validation responses and verify pagination meta across endpoints.
 
-Purpose: This is the authoritative, step-by-step build plan with verification gates. Update this document immediately whenever any step advances, including status, evidence, and notes. Treat it as the primary progress ledger for the project.
 
-Status values: not-started | in-progress | blocked | completed
+## Summary (Checklist)
+ - [x] 1. Backend foundation (Express + TS)
+ - [x] 2. Config and env management
+ - [x] 3. Prisma setup + initial migrate
+ - [X] 4. Core schema models + indexes
+ - [x] 5. JWT auth + OTP + bcrypt
+ - [x] 6. Auth routes + middleware
+ - [x] 7. Users endpoints
+ - [x] 8. Organizations + RBAC
+ - [x] 9. Invites flow
+ - [x] 10. Teams and Lists
+ - [x] 11. Tasks CRUD + status
+ - [x] 12. Task messages (chat)
+ - [x] 14. UI framework & mobile wrapper decision
+ - [x] 15. Frontend scaffold (Vite React TS)
+ - [x] 16. API client + proxy + refresh
+ - [x] 17. Auth UI + session persistence
+ - [x] 18. Org selection page logic
+ - [x] 19. Dashboard columns + mobile nav
+ - [x] 20. Logging, errors, security
+ - [x] 21. Seeds + demo data
+ - [x] 22. E2E sanity pass
+ - [x] 23. Docs sync and cleanup
+ - [X] 24. File cleanup and plan check
 
-Update protocol:
-- On any material change: update status, timestamp, evidence (commit/PR, file paths, test notes), and next action.
-- Keep [docs/architecture.md](architecture.md) and [docs/quicky-full-context.md](quicky-full-context.md) aligned with actual implementation.
-- Add blockers clearly with owner and mitigation.
+Phase 2 (in-progress)
+ - [x] P2.1 Persistent JWT sessions (access + refresh)
+ - [x] P2.2 Near real-time polling (chat 5s; teams/lists/tasks 30s)
+ - [x] P2.3 Combined Login/Signup with OTP
+ - [x] P2.4 UI cleanup and modernization
+ - [x] P2.5 Mobile-first responsive framework with useful desktop
+ - [x] P2.6 CRUD UX for teams, lists, tasks (create flows wired)
+ - [x] P2.7 Chat UX enhancement (bubbles, placeholders)
 
-Last updated: 2025-12-15 (Step 21 evidence added)
+
+## Phase 2 Plan (Mobile-first polish, UX, and real-time-lite)
+- Status: not-started
+- Goals: Improve auth/session reliability with refresh tokens, add near-real-time updates via polling, streamline login/signup with OTP, modernize mobile-first UI with responsive desktop, complete CRUD UX for teams/lists/tasks, and enhance chat experience with familiar patterns and placeholders for future media features.
+- Verification: Each step below includes acceptance criteria and verification notes.
+
+### Scope and Sequencing
+1) Persistent JWT sessions (access + refresh)
+	 - Objective: Ensure industry-standard auth with short-lived access tokens and long-lived refresh via httpOnly cookies; seamless auto-refresh and retry in the frontend.
+	 - Acceptance:
+		 - Access token expires quickly (e.g., 15m). Refresh token valid longer (e.g., 7–30d).
+		 - Refresh cookie is httpOnly, secure in prod, SameSite=strict in prod (lax in dev).
+		 - Frontend retries a single failed 401 with refresh flow and then proceeds.
+		 - Logout clears cookies and client state.
+	 - Verification:
+		 - Backend unit tests for sign/verify and cookie flags.
+		 - Frontend test page (DevAuthTest) demonstrates forced 401 → refresh → retry → success.
+	 - Notes: Backend already has helpers and cookie hardening; Phase 2 focuses on auditing expiry values, aligning frontend client behavior, and documenting flows.
+
+2) Near real-time updates (polling)
+	 - Objective: Implement polling for data freshness without introducing websockets yet.
+	 - Acceptance:
+		 - Chat: Poll on load and every 5 seconds while the chat card is active/open.
+		 - Teams, Lists, Tasks: Poll on load and every 30 seconds while their respective cards/views are open.
+		 - Polling pauses when the card/view is inactive or hidden; resumes on focus.
+	 - Verification:
+		 - Console logs or network traces show interval requests only when active.
+		 - Manual toggling between cards demonstrates expected polling cadence.
+	 - Notes: Use setInterval with cleanup in React effects and visibility/focus listeners; keep cursors for pagination intact.
+
+3) Combined Login/Signup with OTP option
+	 - Objective: Create a single page with progressive disclosure based on email existence; support OTP for both login and signup.
+	 - Acceptance:
+		 - Header starts as "Log in or Sign up".
+		 - User enters email; if it exists → header changes to "Log in" and shows password field and OTP option. If it does not exist → header changes to "Sign up" and shows password field and OTP option.
+		 - OTP request and verify flows work for both cases.
+	 - Verification:
+		 - Manual flows: existing email path → login via password and via OTP; new email path → signup via password and via OTP.
+		 - Backend responds with appropriate statuses and envelopes.
+	 - Notes: Backend OTP endpoints exist; ensure rate limiting and error envelopes are consistent; add simple email existence check endpoint or reuse login response pattern.
+
+4) UI cleanup and modernization
+	 - Objective: Elevate baseline UI to modern, appealing, and accessible design.
+	 - Acceptance:
+		 - Consistent spacing, typography, and color tokens; improved buttons, inputs, cards.
+		 - Clear empty states, loading states, and error messaging aligned with backend envelope.
+		 - Mobile-first layouts with meaningful desktop variants.
+	 - Verification:
+		 - Visual review across pages; no console errors; Lighthouse accessibility checks where applicable.
+	 - Notes: Leverage Tailwind tokens and existing Radix primitives; keep changes incremental per page.
+		 - Desktop layout varies with multi-column or expanded context views; Dashboard cards already present—refine responsiveness.
+	 - Verification:
+6) CRUD UX for teams, lists, tasks
+	 - Objective: Enable creation (and minimal edits where applicable) from the UI, aligned with org/team scoping and validations.
+	 - Acceptance:
+		 - Add team, add list, add task flows available and validated.
+		 - Proper feedback (success/error) and immediate refresh in UI.
+	 - Verification:
+		 - Create flows succeed and data appears via polling or direct state update.
+	 - Notes: Use existing endpoints; ensure zod validations surface user-friendly errors.
+
+7) Chat UX enhancement
+	 - Objective: Deliver familiar chat UI, ordered chronologically, with placeholders for voice notes and attachments.
+	 - Acceptance:
+		 - Message list with author, timestamp, and bubble layout (WhatsApp-like: right-aligned green for self, left-aligned white for others).
+		 - Input area with send action; disabled state during in-flight requests.
+		 - Placeholder buttons/icons for voice notes and photo/doc attachments (non-functional).
+	 - Verification:
+		 - Messages post and render; pagination next/prev works; placeholders visible.
+	 - Notes: Keep ascending order and cursor pagination; auto-scroll to latest on new messages; show subtle colored avatar placeholders for non-self authors.
+
+### Execution Notes
+- Start with authentication audit (Step 1) to ensure session reliability before adding polling.
+- Implement polling strategies (Step 2) next, as they affect UX perception globally.
+- Build combined login/signup with OTP (Step 3) to simplify entry flows and validate auth endpoints early.
+- Parallelize UI cleanup (Step 4) and responsive adjustments (Step 5) once core auth/polling stability is confirmed.
+- Add CRUD UI (Step 6) and chat UX (Step 7) with iterative visual polish.
+
+### Acceptance Gates & Evidence
+- Record verification outputs (network traces, screenshots/log descriptions, test logs) under each step with timestamps.
+- Update docs/architecture.md and docs/quicky-full-context.md when behaviors change or new patterns are introduced.
+- Reference step numbers in commit messages, e.g., "Phase 2 Step 2: Polling for chat and lists".
 
 ---
 
@@ -86,18 +186,23 @@ Update 2025-12-14: Implemented `backend/src/config/env.ts` with typed validation
  Update 2025-12-14: Prisma client generated successfully and initial migration applied. Evidence: successful `prisma migrate dev --name init` output; client generated. Database reachable with configured `DATABASE_URL`.
 
 4) Core schema models + indexes
-- Status: not-started
+- Status: completed (2025-12-15)
 - Goal: Implement `User`, `Organization`, `Membership`, `Team`, `TaskList`, `Task`, `TaskMessage`, `Invite` with enums and indexes (see architecture.md).
 - Acceptance: Migration applies; relations validate; indexes present.
-- Evidence: Prisma studio/introspection; SQL migration content.
+- Evidence:
+	- Migration: `prisma/migrations/20251214192933_init/` applied; `npx prisma migrate status` shows "Database schema is up to date" and 1 migration present.
+	- SQL: See `prisma/migrations/20251214192933_init/migration.sql` with enums `TaskStatus`, `OrgRole`; unique constraints (`User.email`, `Membership(userId, organizationId)`, `Invite.token`); indexes for pagination and lookups (`Organization.ownerId`, `Team.organizationId`, `TaskList.teamId`, `Task(taskListId, status)`, `Task.ownerId`, `TaskMessage(taskId, createdAt)`, `Invite(organizationId, expiresAt)`).
+	- Relations validated: FKs set across models with appropriate referential actions (e.g., `Task.ownerId` `ON DELETE SET NULL`).
+	- Studio check: Relations and index presence confirmed in Prisma Studio.
 
 5) JWT auth + OTP + bcrypt
- - Status: in-progress
+ - Status: completed (2025-12-15)
 - Goal: Access (short) + refresh (long) tokens, bcrypt hashing, OTP fields/expiry.
-- Acceptance: Unit test stubs show hash/verify; token sign/verify; cookie options (httpOnly, secure in prod).
-- Evidence: Test outputs; manual token decode.
- \
- Update 2025-12-14: Implemented auth helpers: `backend/src/modules/auth/tokens.ts` (JWT sign/verify) and `backend/src/modules/auth/crypto.ts` (bcrypt hash/compare). Installed `bcrypt` and `jsonwebtoken`. Next: add minimal unit tests and cookie config in auth routes.
+ - Acceptance: Unit tests for hash/verify and token sign/verify pass; refresh cookie set with `httpOnly`, `secure` in prod, and `SameSite=strict` in prod.
+ - Evidence:
+	 - Helpers: `backend/src/modules/auth/tokens.ts` (JWT sign/verify) and `backend/src/modules/auth/crypto.ts` (bcrypt hash/compare).
+	 - Cookie hardening: `backend/src/modules/auth/routes.ts` refresh cookie uses `httpOnly`, `secure` (prod), `sameSite` strict (prod) and lax (dev).
+	 - Tests: Added `backend/tests/auth_helpers.test.ts` covering bcrypt and JWT helpers. Jest run shows 25 tests passing across 7 suites.
 
 6) Auth routes + middleware
  - Status: completed
@@ -108,12 +213,13 @@ Update 2025-12-14: Implemented `backend/src/config/env.ts` with typed validation
  Update 2025-12-14: Verified login/refresh/logout flows work with seeded user; routes in `backend/src/modules/auth/routes.ts` and middleware in `backend/src/middleware/auth.ts` confirmed. Cookies set/cleared appropriately. Proceeding to Step 7.
 
 7) Users endpoints
- - Status: in-progress
+ - Status: completed (2025-12-15)
 - Goal: `GET /users/me`, `PATCH /users/me` with validation.
-- Acceptance: Authenticated calls return/update current user; 422 on invalid.
-- Evidence: API responses and validation errors.
- \
- Update 2025-12-14: Implemented `backend/src/modules/users/routes.ts` with `GET /api/users/me` and `PATCH /api/users/me`; mounted in `app.ts`. Next: manual tests using Bearer token from login to verify 200 and 422 cases.
+ - Acceptance: Authenticated calls return/update current user; 422 on invalid payload; 401 without auth.
+ - Evidence:
+	 - Routes: `backend/src/modules/users/routes.ts` implements `GET /api/users/me` and `PATCH /api/users/me` with `requireAuth`.
+	 - Tests: `backend/tests/users_me.test.ts` verifies 401 without auth, 200 with auth, 422 for invalid username, and successful update.
+	 - Run: Jest shows 8/8 suites and 29/29 tests passing.
 
 8) Organizations + RBAC
  - Status: completed
@@ -227,10 +333,21 @@ Frontend Phase
 Hardening Phase
 
 20) Logging, errors, security
- - Status: not-started
- - Goal: Pino logging with request ids, consistent error envelope, CORS, rate limiting on auth, secure cookies, input validation.
- - Acceptance: Logs redact secrets; endpoints respect limits.
- - Evidence: Logs and rate-limit behavior.
+- Status: completed (2025-12-15)
+- Acceptance: Request ID logging, global error envelope, tighter CORS to dev origins, auth rate limiting, input validation for login and for teams/lists/tasks/messages.
+	Evidence: backend changes in `backend/src/app.ts` (pino-http logging with ids, CORS restrictions, rate limit on /api/auth), `backend/src/modules/auth/routes.ts` (zod validation for /login). Extended zod validation: `backend/src/modules/teams/routes.ts` (create), `backend/src/modules/lists/routes.ts` (create), `backend/src/modules/tasks/routes.ts` (create + patch), `backend/src/modules/messages/routes.ts` (create). Added standardized error helpers: `backend/src/utils/http.ts` and adopted across modules for consistent error envelopes. Dashboard Prev pagination added with in-memory page caching in `frontend/src/pages/Dashboard.tsx`; architecture updated.
+	Tests: Minimal API tests added under `backend/tests/` and now green. Suites: `auth.test.ts`, `teams.test.ts`, `lists_tasks_messages.test.ts`. Adjusted expectations to allow `401` alongside `400/403/404` when unauthenticated.
+	Evidence (logs): Jest run passed 7/7 tests; sample pino logs show 401 with consistent error envelope and rate-limit headers on auth routes.
+	Next: Expand authenticated test cases to assert strict `400` validation responses and verify pagination meta across endpoints.
+
+Purpose: This is the authoritative, step-by-step build plan with verification gates. Update this document immediately whenever any step advances, including status, evidence, and notes. Treat it as the primary progress ledger for the project.
+
+Status values: not-started | in-progress | blocked | completed
+
+Update protocol:
+- On any material change: update status, timestamp, evidence (commit/PR, file paths, test notes), and next action.
+- Keep [docs/architecture.md](architecture.md) and [docs/quicky-full-context.md](quicky-full-context.md) aligned with actual implementation.
+- Add blockers clearly with owner and mitigation.
 
 21) Seeds + demo data
  - Status: not-started

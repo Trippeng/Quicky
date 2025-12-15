@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Spinner } from '@/components/ui/spinner'
+import { EmptyState } from '@/components/ui/empty'
 import { createOrg, listOrgs, type Org } from '@/api/orgs'
 import { acceptInvite } from '@/api/invites'
 import { useNavigate } from 'react-router-dom'
@@ -77,9 +80,9 @@ export default function OrgSelect() {
         <div>
           <h3 className="font-medium mb-2">Your organizations</h3>
           {loading ? (
-            <div className="text-sm text-muted-foreground">Loading…</div>
+            <div className="flex items-center gap-2 text-muted-foreground"><Spinner /> <span>Loading…</span></div>
           ) : orgs.length === 0 ? (
-            <div className="text-sm text-muted-foreground">You have no organizations yet.</div>
+            <EmptyState title="No organizations" description="Create an organization or accept an invite." />
           ) : (
             <ul className="space-y-2">
               {orgs.map((o) => (
@@ -96,13 +99,13 @@ export default function OrgSelect() {
         <div className="space-y-6">
           <form onSubmit={onCreateOrg} className="space-y-2">
             <h3 className="font-medium">Create an organization</h3>
-            <input className="w-full border rounded px-2 py-1" placeholder="Organization name" value={newOrgName} onChange={(e) => setNewOrgName(e.target.value)} />
+            <Input placeholder="Organization name" value={newOrgName} onChange={(e) => setNewOrgName(e.target.value)} label="Organization name" />
             <Button type="submit">Create</Button>
           </form>
 
           <form onSubmit={onAcceptInvite} className="space-y-2">
             <h3 className="font-medium">Have an invite token?</h3>
-            <input className="w-full border rounded px-2 py-1" placeholder="Paste invite token" value={inviteToken} onChange={(e) => setInviteToken(e.target.value)} />
+            <Input placeholder="Paste invite token" value={inviteToken} onChange={(e) => setInviteToken(e.target.value)} label="Invite token" />
             <Button type="submit" variant="secondary">Accept Invite</Button>
           </form>
         </div>
