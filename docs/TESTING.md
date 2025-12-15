@@ -1,3 +1,11 @@
+## Purpose
+
+This document defines **how to verify existing behavior** via tests and scripts.
+
+It does not define architecture, business rules, or future requirements.
+If there is a conflict, ARCHITECTURE.md and API.md take precedence.
+
+
 # Testing & Verification
 
 Pre-requisites
@@ -11,12 +19,18 @@ PowerShell Scripts (backend/scripts)
 - verify-tasks.ps1 — tasks create/list/get/patch with filters & pagination
 - verify-messages.ps1 — post and paginate messages (ascending order)
 
+These scripts verify current behavior.
+They are not specifications and must be updated if behavior changes intentionally.
+
+
 Expected Results (high level)
 - Success responses: `{ status: "ok", data, meta? }`
 - Error responses: `{ status: "error", message? }` and, for validation, `{ errors: [...] }`
 - Pagination: first page has `meta.nextCursor` when more; last page is `null`
 - RBAC: modifying an OWNER role returns 403
-- Auth precedence: unauthenticated routes may return `401` before `403/404` checks; tests should allow `401` alongside `400/403/404` for unauthenticated calls.
+- Auth precedence: unauthenticated routes may return `401` before `403/404` checks; tests should allow `401` alongside `400/403/404` for unauthenticated calls. These allowances exist to accommodate authentication precedence in tests and
+must not be interpreted as API guarantees beyond what is defined in API.md.
+
 
 Tips
 - Use `127.0.0.1` (IPv4) in URLs on Windows

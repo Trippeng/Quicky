@@ -1,47 +1,251 @@
-# API Overview and Conventions
+# API.md
 
-Auth
-- POST /api/auth/login — email+password → access token (body) and refresh cookie (httpOnly)
-- POST /api/auth/refresh — uses refresh cookie → new access token
-- POST /api/auth/logout — clears refresh cookie
-- POST /api/auth/otp/request, /api/auth/otp/verify — optional OTP flows
+## Purpose
 
-Users
-- GET /api/users/me
-- PATCH /api/users/me
+This document is the **living contract for the backend API**. It describes **only endpoints and behaviors that currently exist in the codebase**.
 
-Organizations
-- POST /api/orgs — creator becomes OWNER
-- GET /api/orgs, GET /api/orgs/:id
-- GET /api/orgs/:id/members
-- POST /api/orgs/:id/members (OWNER|ADMIN)
-- PATCH /api/orgs/:id/members/:memberId (OWNER|ADMIN; cannot change OWNER role)
+This file:
+- Is authoritative for request/response shape
+- Must stay aligned with the implementation
+- May be extended as new endpoints are added
 
-Invites
-- POST /api/orgs/:id/invites (OWNER|ADMIN) — one-time, 14-day default expiry
-- POST /api/invites/accept — accept token → creates MEMBER, marks used
+This file must **not** describe future, planned, or speculative APIs.
 
-Teams & Lists
-- POST /api/orgs/:orgId/teams (OWNER|ADMIN)
-- GET /api/orgs/:orgId/teams?limit&cursor
-- POST /api/teams/:teamId/lists (OWNER|ADMIN in org)
-- GET /api/teams/:teamId/lists?limit&cursor
+---
 
-Tasks
-- POST /api/lists/:listId/tasks
-- GET /api/lists/:listId/tasks?status&ownerId&limit&cursor
-- GET /api/tasks/:taskId
-- PATCH /api/tasks/:taskId (title, description, status, ownerId)
+## General Conventions
 
-Messages
-- POST /api/tasks/:taskId/messages
-- GET /api/tasks/:taskId/messages?limit&cursor (ascending chronological)
+### Base Path
 
-Conventions
-- Success: { status: "ok", data, meta? }
-- Error: { status: "error", message, code? }
-- Cursor pagination: query `limit`, `cursor`; response `meta.nextCursor` (null when done)
+All endpoints are served under:
 
-Security
-- Access token in Authorization: Bearer <token>; refresh token in httpOnly cookie
-- CORS restricted in production; secure cookies in production
+```
+/api
+```
+
+This is implicitly treated as **v1**.
+
+---
+
+### Authentication
+
+- Most endpoints require authentication
+- Access tokens are sent via Authorization header
+- Refresh tokens are stored as httpOnly cookies
+
+Unauthenticated requests:
+- Return `401 Unauthorized`
+- May return `401` before RBAC or validation errors
+
+---
+
+### Organization Context (Required)
+
+All org-scoped endpoints require an explicit organization identifier:
+
+```
+X-Org-Id: <organization-id>
+```
+
+Rules:
+- Backend verifies membership on every request
+- Missing org context results in request rejection
+
+---
+
+### Response Envelope
+
+All responses follow a consistent envelope:
+
+Success:
+```json
+{ "status": "ok", "data": {}, "meta": {} }
+```
+
+Error:
+```json
+{ "status": "error", "message": "...", "errors": [] }
+```
+
+- `meta` is optional
+- Validation errors include a detailed `errors` array
+
+---
+
+### Pagination
+
+- Cursor-based pagination only
+- Offset-based pagination is not used
+
+Paginated responses include:
+```json
+meta: {
+  "nextCursor": "..." | null
+}
+```
+
+---
+
+## Health
+
+### GET /health
+
+Purpose:
+- Liveness check
+
+Response:
+```json
+{ "status": "ok" }
+```
+
+---
+
+## Authentication
+
+### POST /api/auth/login
+
+- Email-based login
+- Supports password or OTP flows
+
+---
+
+### POST /api/auth/refresh
+
+- Refreshes access token using httpOnly refresh cookie
+- Called automatically by the client on `401`
+
+---
+
+### POST /api/auth/logout
+
+- Invalidates refresh token
+
+---
+
+## Users
+
+### GET /api/users/me
+
+- Returns the authenticated user
+
+---
+
+### PATCH /api/users/me
+
+- Updates user profile fields
+
+---
+
+## Organizations
+
+### GET /api/orgs
+
+- Lists organizations the user belongs to
+
+---
+
+### POST /api/orgs
+
+- Creates a new organization
+- Creating user becomes owner
+
+---
+
+## Invites
+
+### POST /api/invites
+
+- Creates an invite for an organization
+
+---
+
+### POST /api/invites/accept
+
+- Accepts an invite
+- Creates org membership
+
+---
+
+## Teams
+
+### GET /api/teams
+
+- Lists teams for the active organization
+- Cursor-paginated
+
+---
+
+### POST /api/teams
+
+- Creates a team in the organization
+
+---
+
+## Task Lists
+
+### GET /api/lists
+
+- Lists task lists for a team
+- Cursor-paginated
+
+---
+
+### POST /api/lists
+
+- Creates a task list
+
+---
+
+## Tasks
+
+### GET /api/tasks
+
+- Lists tasks
+- Supports filters
+- Cursor-paginated
+
+---
+
+### POST /api/tasks
+
+- Creates a task
+
+---
+
+### PATCH /api/tasks/:id
+
+- Updates task fields (status, owner, due date, watchers, etc.)
+
+---
+
+## Task Messages
+
+### GET /api/messages
+
+- Lists messages for a task
+- Ordered ascending
+- Cursor-paginated
+
+---
+
+### POST /api/messages
+
+- Creates a task message
+
+---
+
+## Notes
+
+- RBAC failures return `403`
+- Validation failures return `400`
+- Some unauthenticated requests may return `401` before other checks
+
+---
+
+## What This Document Is Not
+
+- Not a roadmap
+- Not a schema reference
+- Not a frontend integration guide
+
+Only implemented behavior belongs here.
