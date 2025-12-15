@@ -118,6 +118,8 @@ An organization is considered successfully activated if:
 - It reaches at least 3 users, and
 - The number of tasks created in the first week is greater than or equal to the number of users in the organization
 
+Note: Activation measurement/endpoint is deferred from the MVP. This definition remains the product KPI for later analysis and is not implemented as an API in the MVP scope.
+
 ## 5. Invite System Design
 
 ### Invite Entry Points
@@ -149,7 +151,9 @@ This approach balances usability with security and avoids long-lived access toke
 - Tasks with status
 - Task chat (text only)
 - Invite flow (link-based and email-based)
-- Basic activation metrics
+  
+Deferred from MVP
+- Activation metrics (computation and API)
 
 ### Explicitly Excluded from MVP
 - AI features

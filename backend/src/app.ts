@@ -6,6 +6,11 @@ import cookieParser from 'cookie-parser';
 import authRoutes from './modules/auth/routes';
 import userRoutes from './modules/users/routes';
 import orgRoutes from './modules/orgs/routes';
+import teamRoutes from './modules/teams/routes';
+import listRoutes from './modules/lists/routes';
+import taskRoutes from './modules/tasks/routes';
+import messageRoutes from './modules/messages/routes';
+import inviteRoutes from './modules/invites/routes';
 
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 
@@ -29,6 +34,11 @@ export const createApp = () => {
   app.use('/api/auth', authRoutes);
   app.use('/api/users', userRoutes);
   app.use('/api/orgs', orgRoutes);
+  app.use('/api', teamRoutes);
+  app.use('/api', listRoutes);
+  app.use('/api', taskRoutes);
+  app.use('/api', messageRoutes);
+  app.use('/api/invites', inviteRoutes);
 
   // 404 handler
   app.use((req, res) => {

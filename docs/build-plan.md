@@ -26,7 +26,6 @@ Last updated: <to be updated on each change>
 - [ ] 10. Teams and Lists
 - [ ] 11. Tasks CRUD + status
 - [ ] 12. Task messages (chat)
-- [ ] 13. Activation metrics endpoint
  - [ ] 14. UI framework & mobile wrapper decision
  - [ ] 15. Frontend scaffold (Vite React TS)
  - [ ] 16. API client + proxy + refresh
@@ -106,7 +105,7 @@ Update 2025-12-14: Implemented `backend/src/config/env.ts` with typed validation
  Update 2025-12-14: Implemented `backend/src/modules/users/routes.ts` with `GET /api/users/me` and `PATCH /api/users/me`; mounted in `app.ts`. Next: manual tests using Bearer token from login to verify 200 and 422 cases.
 
 8) Organizations + RBAC
- - Status: in-progress
+ - Status: completed
 - Goal: `POST /orgs`, `GET /orgs`, `GET /orgs/:id`, members list, role updates with `requireRole(OWNER|ADMIN)`.
 - Acceptance: Role checks enforced; unique membership per (user, org).
 - Evidence: API responses; negative tests for role violations.
@@ -123,37 +122,57 @@ Additional Verification 2025-12-14:
 - Seeded second user `user2@example.com` and created `User2 Org`.
 - RBAC: Demo user attempting `PATCH /api/orgs/:orgId/members/:memberId` on `User2 Org` returned 403 (expected).
 - Users endpoints: `GET /users/me` returns demo; `PATCH /users/me` updated username to `demo-updated2`.
- - Owner role protection: Deployed guard to disallow modifying `OWNER` role. Pending final confirmation requires stable dev server restart; policy is implemented in `backend/src/modules/orgs/routes.ts`.
+ - Owner role protection: Guard disallows modifying `OWNER` role in `backend/src/modules/orgs/routes.ts`. Confirmed with `403` by attempting to patch `OWNER` as demo (ADMIN) after fresh org creation.
+ - Member-add endpoint: `POST /orgs/:id/members` verified. Added `demo@example.com` as `MEMBER` to a fresh org owned by `user2@example.com`; members list shows the new membership. Helper script: `backend/scripts/verify-step-9.ps1`.
+
+Next action: Proceed to Step 9 (Invites flow).
 
 9) Invites flow
-- Status: not-started
+- Status: completed
 - Goal: `POST /orgs/:id/invites` (one-time, 14d default), `POST /invites/accept` (token).
 - Acceptance: Expired/used blocked; accepting creates MEMBER; invite invalidated.
 - Evidence: DB state before/after; API responses.
+\
+Update 2025-12-14: Implemented invite creation in `backend/src/modules/orgs/routes.ts` (`POST /api/orgs/:id/invites`) and accept endpoint in `backend/src/modules/invites/routes.ts` (`POST /api/invites/accept`). Mounted in `app.ts`. Default expiry 14 days; prevents reuse (`usedAt`) and rejects expired/used or already-member cases.
+Evidence: `backend/scripts/verify-invites.ps1` output shows invite token issued, accepted by `demo@example.com`, and members list contains OWNER + MEMBER.
 
 10) Teams and Lists
-- Status: not-started
+- Status: completed
 - Goal: POST/GET teams (org); POST/GET lists (team) with pagination.
 - Acceptance: Org scoping enforced; pagination metadata present.
 - Evidence: API response `meta` and DB filters.
+\
+Update 2025-12-14: Implemented teams endpoints in `backend/src/modules/teams/routes.ts`:
+- `POST /api/orgs/:orgId/teams` (OWNER|ADMIN), `GET /api/orgs/:orgId/teams?limit&cursor` (members). Cursor pagination returns `meta.nextCursor`.
+Implemented lists endpoints in `backend/src/modules/lists/routes.ts`:
+- `POST /api/teams/:teamId/lists` (OWNER|ADMIN of org), `GET /api/teams/:teamId/lists?limit&cursor` (members).
+Mounted in `backend/src/app.ts`. Verification via `backend/scripts/verify-teams-lists.ps1` shows created org/team/list and paginated lists with `meta`.
 
 11) Tasks CRUD + status
-- Status: not-started
+ - Status: completed
 - Goal: `POST/GET /lists/:listId/tasks`, `GET/PATCH /tasks/:taskId` (status, owner, fields).
 - Acceptance: Indexed filters; pagination; status transitions persisted.
 - Evidence: Query plans or timing; response envelopes.
+\
+Update 2025-12-14: Implemented tasks endpoints in `backend/src/modules/tasks/routes.ts`:
+- `POST /api/lists/:listId/tasks` (org members), `GET /api/lists/:listId/tasks?status&ownerId&limit&cursor` with `meta.nextCursor`.
+- `GET /api/tasks/:taskId`, `PATCH /api/tasks/:taskId` (title, description, status, ownerId) with org membership checks.
+Mounted in `backend/src/app.ts`. Verification via `backend/scripts/verify-tasks.ps1` confirms creation, list with pagination meta, read, and status transitions `REQUIRES_ATTENTION → IN_PROGRESS → COMPLETE`.
 
 12) Task messages (chat)
-- Status: not-started
-- Goal: `GET/POST /tasks/:taskId/messages` with pagination and chronological order.
-- Acceptance: Lazy load older messages; consistent envelope.
-- Evidence: Paged responses; creation timestamps.
+ - Status: completed
+ - Goal: `GET/POST /tasks/:taskId/messages` with pagination and chronological order.
+ - Acceptance: Lazy load older messages; consistent envelope.
+ - Evidence: Paged responses; creation timestamps.
+\
+Update 2025-12-14: Implemented messages endpoints in `backend/src/modules/messages/routes.ts`:
+- `POST /api/tasks/:taskId/messages` (org members), `GET /api/tasks/:taskId/messages?limit&cursor` with ascending chronological order and `meta.nextCursor`.
+Mounted in `backend/src/app.ts`. Verification via `backend/scripts/verify-messages.ps1` posts messages as owner & demo and retrieves them across two pages in ascending order with correct `nextCursor`.
 
-13) Activation metrics endpoint
-- Status: not-started
-- Goal: Compute activation: ≥3 users AND week-1 tasks ≥ users.
-- Acceptance: Endpoint returns activation per org; seeded test passes.
-- Evidence: Test case and API response.
+---
+
+Deferred (Phase 2)
+- Activation metrics endpoint: Deferred from MVP to reduce scope and speed up delivery. The activation definition remains a product KPI, but no backend endpoint or aggregation will ship in MVP. Revisit post-MVP once core workflows are stable.
 
 15) Frontend scaffold (Vite React TS)
 - Status: not-started

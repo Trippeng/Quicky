@@ -3,6 +3,7 @@ import { prisma } from '../../db/prisma';
 import { requireAuth, AuthRequest } from '../../middleware/auth';
 import { requireRole } from '../../middleware/requireRole';
 import { OrgRole } from '@prisma/client';
+import crypto from 'crypto';
 
 const router = Router();
 
@@ -45,6 +46,16 @@ router.get('/:id/members', requireAuth, async (req: AuthRequest, res) => {
     orderBy: { createdAt: 'asc' },
   });
   return res.json({ status: 'ok', data: members });
+});
+
+// Create an invite (OWNER or ADMIN required)
+router.post('/:id/invites', requireAuth, requireRole([OrgRole.OWNER, OrgRole.ADMIN]), async (req: AuthRequest, res) => {
+  const orgId = req.params.id;
+  const days = typeof req.body?.days === 'number' && req.body.days > 0 ? Math.min(req.body.days, 30) : 14;
+  const token = crypto.randomBytes(24).toString('hex');
+  const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+  const invite = await prisma.invite.create({ data: { organizationId: orgId, token, expiresAt } });
+  return res.status(201).json({ status: 'ok', data: invite });
 });
 
 // Add a member by email with role (OWNER or ADMIN required)

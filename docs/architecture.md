@@ -347,7 +347,7 @@ Preserve selection across views
 ## 10. Logging & Observability
 - Logging: pino with request-scoped ids; redact secrets
 - Error reporting: hook for external service (e.g., Sentry) optional in production
-- Metrics (optional): basic counters for requests, errors; activation metrics per product definition
+- Metrics (optional): basic counters for requests, errors; activation metrics deferred to Phase 2 (kept as a product KPI, not an MVP endpoint)
 
 ## 11. Environment & Dev Setup (aligned)
 - Backend: Node LTS; `.env` with `DATABASE_URL`, `JWT_SECRET`, `REFRESH_TOKEN_SECRET`, `PORT`

@@ -4,6 +4,7 @@ dotenv.config();
 
 type Env = {
   PORT: number;
+  HOST: string;
   LOG_LEVEL: 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
   DATABASE_URL: string;
   JWT_SECRET: string;
@@ -43,6 +44,7 @@ function parseLogLevel(name: string, def: Env['LOG_LEVEL']): Env['LOG_LEVEL'] {
 
 export const env: Env = {
   PORT: parseNumber('PORT', 4000),
+  HOST: process.env.HOST || '0.0.0.0',
   LOG_LEVEL: parseLogLevel('LOG_LEVEL', 'info'),
   DATABASE_URL: required('DATABASE_URL'),
   JWT_SECRET: required('JWT_SECRET'),
