@@ -44,7 +44,7 @@ router.get('/teams/:teamId/lists', requireAuth, async (req: AuthRequest, res) =>
   const limit = parseLimit(req.query.limit);
   const cursorId = typeof req.query.cursor === 'string' ? (req.query.cursor as string) : undefined;
   const query: any = {
-    where: { teamId: team.id },
+    where: { teamId: team.id, archived: false },
     orderBy: { createdAt: 'desc' },
     take: limit,
   };
@@ -55,6 +55,41 @@ router.get('/teams/:teamId/lists', requireAuth, async (req: AuthRequest, res) =>
   const items = await prisma.taskList.findMany(query);
   const nextCursor = items.length === limit ? items[items.length - 1].id : null;
   return res.json({ status: 'ok', data: items, meta: { nextCursor, limit } });
+});
+
+// Patch list (OWNER or ADMIN in org required)
+const patchListSchema = z.object({ name: z.string().min(2).optional(), archived: z.boolean().optional() });
+router.patch('/lists/:listId', requireAuth, async (req: AuthRequest, res) => {
+  const list = await prisma.taskList.findUnique({ where: { id: req.params.listId }, include: { team: true } });
+  if (!list) return sendError(res, 404, 'List not found');
+  const orgId = list.team.organizationId;
+  const membership = await prisma.membership.findFirst({ where: { organizationId: orgId, userId: req.user!.id } });
+  if (!membership || (membership.role !== OrgRole.OWNER && membership.role !== OrgRole.ADMIN)) {
+    return sendError(res, 403, 'Forbidden');
+  }
+  const parsed = patchListSchema.safeParse(req.body || {});
+  if (!parsed.success) return sendZodError(res, parsed);
+  const data: any = {};
+  if (typeof parsed.data.name === 'string') data.name = parsed.data.name;
+  if (typeof parsed.data.archived === 'boolean') data.archived = parsed.data.archived;
+  const updated = await prisma.taskList.update({ where: { id: list.id }, data });
+  return res.json({ status: 'ok', data: updated });
+});
+
+// Delete list (OWNER or ADMIN in org required). Cascades to tasks.
+router.delete('/lists/:listId', requireAuth, async (req: AuthRequest, res) => {
+  const list = await prisma.taskList.findUnique({ where: { id: req.params.listId }, include: { team: true } });
+  if (!list) return sendError(res, 404, 'List not found');
+  const orgId = list.team.organizationId;
+  const membership = await prisma.membership.findFirst({ where: { organizationId: orgId, userId: req.user!.id } });
+  if (!membership || (membership.role !== OrgRole.OWNER && membership.role !== OrgRole.ADMIN)) {
+    return sendError(res, 403, 'Forbidden');
+  }
+  await prisma.$transaction(async (tx) => {
+    await tx.task.deleteMany({ where: { taskListId: list.id } });
+    await tx.taskList.delete({ where: { id: list.id } });
+  });
+  return res.json({ status: 'ok', data: { id: list.id } });
 });
 
 export default router;

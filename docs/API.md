@@ -39,17 +39,11 @@ Unauthenticated requests:
 
 ---
 
-### Organization Context (Required)
+### Organization Context
 
-All org-scoped endpoints require an explicit organization identifier:
-
-```
-X-Org-Id: <organization-id>
-```
-
-Rules:
-- Backend verifies membership on every request
-- Missing org context results in request rejection
+- Org membership is enforced via resource paths (e.g., teams under an org, lists under a team, etc.).
+- Endpoints include the required identifiers in their URL path (e.g., `/api/orgs/:orgId/teams`, `/api/teams/:teamId/lists`).
+- The server validates that the authenticated user is a member of the relevant organization and, when required, has `OWNER` or `ADMIN` role.
 
 ---
 
@@ -140,7 +134,8 @@ Response:
 
 ### GET /api/orgs
 
-- Lists organizations the user belongs to
+- Lists organizations the user belongs to, including the caller's role within each org
+- Returns an array of objects: `{ id: string, name: string, role: "OWNER" | "ADMIN" | "MEMBER" }`
 
 ---
 
@@ -168,84 +163,127 @@ Response:
 
 ## Teams
 
-### GET /api/teams
+### GET /api/orgs/:orgId/teams
 
-- Lists teams for the active organization
+- Lists teams for an organization the user belongs to
 - Cursor-paginated
+- Auth: org membership required
+- Query: `limit`, `cursor`
+ - Notes: returns only non-archived teams
 
----
-
-### POST /api/teams
+### POST /api/orgs/:orgId/teams
 
 - Creates a team in the organization
+- Auth: `OWNER` or `ADMIN` in the org
+- Body: `{ name: string (min 2) }`
+
+### PATCH /api/teams/:teamId
+
+- Updates a team
+- Auth: `OWNER` or `ADMIN` in the owning org
+- Body: `{ name?: string (min 2), archived?: boolean }`
+
+### DELETE /api/teams/:teamId
+
+- Deletes a team and all of its lists and tasks
+- Auth: `OWNER` or `ADMIN` in the owning org
 
 ---
 
 ## Task Lists
 
-### GET /api/lists
+### GET /api/teams/:teamId/lists
 
 - Lists task lists for a team
 - Cursor-paginated
+- Auth: membership in the team’s org required
+- Query: `limit`, `cursor`
+ - Notes: returns only non-archived lists
 
----
+### POST /api/teams/:teamId/lists
 
-### POST /api/lists
+- Creates a task list in a team
+- Auth: `OWNER` or `ADMIN` in the team’s org
+- Body: `{ name: string (min 2) }`
 
-- Creates a task list
+### PATCH /api/lists/:listId
+
+- Updates a task list
+- Auth: `OWNER` or `ADMIN` in the list’s org
+- Body: `{ name?: string (min 2), archived?: boolean }`
+
+### DELETE /api/lists/:listId
+
+- Deletes a list and all of its tasks
+- Auth: `OWNER` or `ADMIN` in the list’s org
 
 ---
 
 ## Tasks
 
-### GET /api/tasks
+### GET /api/lists/:listId/tasks
 
-- Lists tasks
-- Supports filters
+- Lists tasks in a list
 - Cursor-paginated
+- Auth: membership in the list’s org required
+- Query: `limit`, `cursor`, `status` (enum), `ownerId`
+- Notes: returns only non-archived tasks
 
----
+### POST /api/lists/:listId/tasks
 
-### POST /api/tasks
+- Creates a task in a list
+- Auth: membership in the list’s org required
+- Body: `{ title: string (min 1), description?: string, ownerId?: string }`
 
-- Creates a task
+### GET /api/tasks/:taskId
 
----
+- Returns a task by id
+- Auth: membership in the task’s org required
 
-### PATCH /api/tasks/:id
+### PATCH /api/tasks/:taskId
 
-- Updates task fields (status, owner, due date, watchers, etc.)
+- Updates task fields
+- Auth: membership in the task’s org required
+- Body: `{ title?: string (min 1), description?: string, status?: TaskStatus, ownerId?: string | null, archived?: boolean }`
+
+### DELETE /api/tasks/:taskId
+
+- Deletes a task
+- Auth: membership in the task’s org required
 
 ---
 
 ## Task Messages
 
-### GET /api/messages
+### GET /api/tasks/:taskId/messages
 
 - Lists messages for a task
 - Ordered ascending
 - Cursor-paginated
+- Auth: membership in the task’s org required
+- Query: `limit`, `cursor`
+
+### POST /api/tasks/:taskId/messages
+
+- Creates a message for a task
+- Auth: membership in the task’s org required
+- Body: `{ body: string (min 1) }`
 
 ---
 
-### POST /api/messages
+## Invites
 
-- Creates a task message
+### POST /api/orgs/:id/invites
 
----
+- Creates an invite for the organization
+- Auth: `OWNER` or `ADMIN`
+- Body: `{ days?: number }` (default 14, max 30)
 
-## Notes
+### POST /api/invites/accept
 
-- RBAC failures return `403`
-- Validation failures return `400`
-- Some unauthenticated requests may return `401` before other checks
-
----
-
-## What This Document Is Not
-
-- Not a roadmap
-- Not a schema reference
+- Accepts an invite by token, creates org membership
+- Auth required
+- Body: `{ token: string }`
 - Not a frontend integration guide
 
 Only implemented behavior belongs here.

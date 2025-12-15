@@ -46,6 +46,7 @@ model Organization {
   memberships  Membership[]
   teams        Team[]
   invites      Invite[]
+  settings     Json?
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
   @@index([ownerId])
@@ -71,6 +72,7 @@ model Team {
   organization   Organization  @relation(fields: [organizationId], references: [id])
   taskLists      TaskList[]
   createdAt      DateTime      @default(now())
+  archived       Boolean       @default(false)
   @@index([organizationId])
 }
 
@@ -81,6 +83,7 @@ model TaskList {
   team      Team    @relation(fields: [teamId], references: [id])
   tasks     Task[]
   createdAt DateTime @default(now())
+  archived  Boolean  @default(false)
   @@index([teamId])
 }
 
@@ -96,6 +99,7 @@ model Task {
   messages    TaskMessage[]
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
+  archived    Boolean     @default(false)
   @@index([taskListId, status])
   @@index([ownerId])
 }

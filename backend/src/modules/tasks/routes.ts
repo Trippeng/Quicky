@@ -57,7 +57,7 @@ router.get('/lists/:listId/tasks', requireAuth, async (req: AuthRequest, res) =>
   if (!(await ensureMember(orgId, req.user!.id))) {
     return sendError(res, 403, 'Forbidden');
   }
-  const where: any = { taskListId: list.id };
+  const where: any = { taskListId: list.id, archived: false };
   if (typeof req.query.status === 'string' && Object.values(TaskStatus).includes(req.query.status as TaskStatus)) {
     where.status = req.query.status as TaskStatus;
   }
@@ -92,6 +92,7 @@ const patchTaskSchema = z.object({
   description: z.string().optional(),
   status: z.nativeEnum(TaskStatus).optional(),
   ownerId: z.string().nullable().optional(),
+  archived: z.boolean().optional(),
 });
 router.patch('/tasks/:taskId', requireAuth, async (req: AuthRequest, res) => {
   const existing = await prisma.task.findUnique({ where: { id: req.params.taskId }, include: { taskList: { include: { team: true } } } });
@@ -107,6 +108,18 @@ router.patch('/tasks/:taskId', requireAuth, async (req: AuthRequest, res) => {
   const data = parsed.data as any;
   const updated = await prisma.task.update({ where: { id: existing.id }, data });
   return res.json({ status: 'ok', data: updated });
+});
+
+// Delete task (org members)
+router.delete('/tasks/:taskId', requireAuth, async (req: AuthRequest, res) => {
+  const existing = await prisma.task.findUnique({ where: { id: req.params.taskId }, include: { taskList: { include: { team: true } } } });
+  if (!existing) return sendError(res, 404, 'Task not found');
+  const orgId = existing.taskList.team.organizationId;
+  if (!(await ensureMember(orgId, req.user!.id))) {
+    return sendError(res, 403, 'Forbidden');
+  }
+  await prisma.task.delete({ where: { id: existing.id } });
+  return res.json({ status: 'ok', data: { id: existing.id } });
 });
 
 export default router;

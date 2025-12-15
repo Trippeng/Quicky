@@ -24,11 +24,13 @@ router.post('/', requireAuth, async (req: AuthRequest, res) => {
 
 // List my organizations
 router.get('/', requireAuth, async (req: AuthRequest, res) => {
-  const orgs = await prisma.organization.findMany({
-    where: { memberships: { some: { userId: req.user!.id } } },
+  const memberships = await prisma.membership.findMany({
+    where: { userId: req.user!.id },
+    include: { organization: { select: { id: true, name: true } } },
     orderBy: { createdAt: 'desc' },
   });
-  return res.json({ status: 'ok', data: orgs });
+  const data = memberships.map((m) => ({ id: m.organization.id, name: m.organization.name, role: m.role }))
+  return res.json({ status: 'ok', data });
 });
 
 // Get org by id
@@ -101,6 +103,46 @@ router.patch('/:orgId/members/:memberId', requireAuth, requireRole([OrgRole.OWNE
     data: { role },
   });
   return res.json({ status: 'ok', data: updated });
+});
+// Org Settings endpoints
+router.get('/:id/settings', requireAuth, async (req: AuthRequest, res) => {
+  // Ensure requester is a member of the org
+  const membership = await prisma.membership.findFirst({ where: { organizationId: req.params.id, userId: req.user!.id } })
+  if (!membership) return res.status(403).json({ status: 'error', message: 'Forbidden' })
+  const org = await prisma.organization.findUnique({ where: { id: req.params.id } })
+  if (!org) return res.status(404).json({ status: 'error', message: 'Organization not found' })
+  const settings = (org as any).settings || {}
+  return res.json({ status: 'ok', data: settings })
+});
+
+router.patch('/:id/settings', requireAuth, requireRole([OrgRole.OWNER, OrgRole.ADMIN]), async (req: AuthRequest, res) => {
+  const orgId = req.params.id
+  const { hideTeams, hideLists } = req.body || {}
+  if (typeof hideTeams !== 'boolean' && typeof hideLists !== 'boolean') {
+    return res.status(422).json({ status: 'error', message: 'No valid settings provided' })
+  }
+  // Load current settings
+  const org = await prisma.organization.findUnique({ where: { id: orgId } })
+  if (!org) return res.status(404).json({ status: 'error', message: 'Organization not found' })
+  const current = ((org as any).settings || {}) as { hideTeams?: boolean; hideLists?: boolean }
+  const next = { ...current }
+  if (typeof hideTeams === 'boolean') next.hideTeams = hideTeams
+  if (typeof hideLists === 'boolean') next.hideLists = hideLists
+  // Enforce constraints: if hiding teams, org must have at most one non-archived team
+  if (next.hideTeams) {
+    const count = await prisma.team.count({ where: { organizationId: orgId, archived: false } })
+    if (count > 1) return res.status(409).json({ status: 'error', message: 'Cannot hide Teams: more than one team exists.' })
+  }
+  // If hiding lists, each team must have at most one non-archived list
+  if (next.hideLists) {
+    const teams = await prisma.team.findMany({ where: { organizationId: orgId, archived: false }, select: { id: true } })
+    for (const t of teams) {
+      const listCount = await prisma.taskList.count({ where: { teamId: t.id, archived: false } })
+      if (listCount > 1) return res.status(409).json({ status: 'error', message: 'Cannot hide Task Lists: a team has more than one list.' })
+    }
+  }
+  const updated = await prisma.organization.update({ where: { id: orgId }, data: { settings: next as any } })
+  return res.json({ status: 'ok', data: (updated as any).settings || {} })
 });
 
 export default router;

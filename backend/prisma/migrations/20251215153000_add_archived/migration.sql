@@ -1,0 +1,4 @@
+-- Add archived columns to Team, TaskList, and Task
+ALTER TABLE "Team" ADD COLUMN IF NOT EXISTS "archived" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "TaskList" ADD COLUMN IF NOT EXISTS "archived" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "Task" ADD COLUMN IF NOT EXISTS "archived" BOOLEAN NOT NULL DEFAULT false;

@@ -5,16 +5,25 @@ import { Spinner } from '@/components/ui/spinner'
 import { EmptyState } from '@/components/ui/empty'
 import { createOrg, listOrgs, type Org } from '@/api/orgs'
 import { acceptInvite } from '@/api/invites'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 
 export default function OrgSelect() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [orgs, setOrgs] = useState<Org[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [newOrgName, setNewOrgName] = useState('')
   const [inviteToken, setInviteToken] = useState('')
   const lastOrgId = useMemo(() => localStorage.getItem('lastOrgId'), [])
+  const switching = useMemo(() => {
+    try {
+      const params = new URLSearchParams(location.search)
+      return params.get('switch') === '1'
+    } catch {
+      return false
+    }
+  }, [location.search])
 
   async function refresh() {
     setLoading(true)
@@ -23,8 +32,8 @@ export default function OrgSelect() {
       const res = await listOrgs()
       if (res.status === 'ok' && res.data) {
         setOrgs(res.data)
-        // Auto-skip if lastOrgId is valid
-        if (lastOrgId && res.data.some((o: Org) => o.id === lastOrgId)) {
+        // Auto-skip if lastOrgId is valid (unless user explicitly pressed Change Org)
+        if (!switching && lastOrgId && res.data.some((o: Org) => o.id === lastOrgId)) {
           navigate('/dashboard', { replace: true })
           return
         }

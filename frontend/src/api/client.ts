@@ -52,12 +52,36 @@ export async function apiFetch(input: string, init: RequestInit = {}, retry = tr
 
 export async function apiGetJson<T>(path: string): Promise<T> {
   const resp = await apiFetch(path)
-  const json = await resp.json()
-  return json as T
+  return parseJsonSafe<T>(resp)
 }
 
 export async function apiPostJson<T>(path: string, body: any): Promise<T> {
   const resp = await apiFetch(path, { method: 'POST', body: JSON.stringify(body) })
-  const json = await resp.json()
-  return json as T
+  return parseJsonSafe<T>(resp)
+}
+
+export async function apiFetchJson<T>(input: string, init: RequestInit = {}): Promise<T> {
+  const resp = await apiFetch(input, init)
+  return parseJsonSafe<T>(resp)
+}
+
+export async function parseJsonSafe<T>(resp: Response): Promise<T> {
+  const contentType = resp.headers.get('content-type') || ''
+  const contentLength = resp.headers.get('content-length')
+  if (resp.status === 204 || contentLength === '0' || !contentType.includes('application/json')) {
+    let text = ''
+    try { text = await resp.text() } catch {}
+    const fallback: any = { status: resp.ok ? 'ok' : 'error' }
+    if (!resp.ok) fallback.message = text || `HTTP ${resp.status}`
+    return fallback as T
+  }
+  try {
+    const json = await resp.json()
+    return json as T
+  } catch {
+    let text = ''
+    try { text = await resp.text() } catch {}
+    const fallback: any = { status: 'error', message: text || 'Invalid JSON response' }
+    return fallback as T
+  }
 }
